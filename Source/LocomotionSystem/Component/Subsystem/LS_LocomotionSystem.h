@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Data/Struct/LS_AnimSet.h"
 #include "LS_LocomotionSystem.generated.h"
 
 
@@ -14,4 +15,10 @@ class LOCOMOTIONSYSTEM_API ULS_LocomotionSystem : public UActorComponent
 
 public:
 	ULS_LocomotionSystem();
+
+	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe))
+	FLS_AnimSet GetAnimSet(FName RowName) const;
+protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="配置")
+	TObjectPtr<UDataTable> AnimSetDataTable;
 };

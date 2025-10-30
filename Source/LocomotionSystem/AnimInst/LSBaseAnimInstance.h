@@ -37,7 +37,7 @@ protected:
 	// virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override;
 
 	// 一些公共函数及变量
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画|Idle")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
 	TObjectPtr<UAnimSequenceBase> IdleAnim;
 	
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
