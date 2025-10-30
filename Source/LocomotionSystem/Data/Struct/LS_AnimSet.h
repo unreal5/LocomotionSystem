@@ -10,6 +10,8 @@ struct FLS_AnimSet : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画集")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画|Idle")
 	TObjectPtr<UAnimSequenceBase> IdleAnim;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
+	TArray<TObjectPtr<UAnimSequenceBase>> IdleBreaks;
 };

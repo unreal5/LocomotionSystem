@@ -39,9 +39,17 @@ protected:
 	// 一些公共函数及变量
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
 	TObjectPtr<UAnimSequenceBase> IdleAnim;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
+	TArray<TObjectPtr<UAnimSequenceBase>> IdleBreaks;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
+	float TimeUntilNextIdleBreak = 3.f;
 	
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
 	void OnUpdateIdleAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node);
+	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
+	void OnSetupIdleBreakAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node);
 private:
 	FLSBaseAnimInstanceProxy& GetLSBaseAnimInstanceProxy();
 	friend FLSBaseAnimInstanceProxy;

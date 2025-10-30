@@ -38,3 +38,16 @@ void ULSBaseAnimInstance::OnUpdateIdleAnimLayer(const FAnimUpdateContext& Contex
 
 	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, IdleAnim);
 }
+
+void ULSBaseAnimInstance::OnSetupIdleBreakAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node)
+{
+	if (IdleBreaks.Num() == 0) return;
+	
+	EAnimNodeReferenceConversionResult  ConversionResult;
+	FSequencePlayerReference SeqPlayerRef = USequencePlayerLibrary::ConvertToSequencePlayer(Node, ConversionResult);
+	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded) return;
+
+	int32 Index = FMath::RandRange(0, IdleBreaks.Num() - 1);
+	UAnimSequenceBase* IdleBreakAnim = IdleBreaks[Index];
+	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, IdleBreakAnim);
+}
