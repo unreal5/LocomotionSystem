@@ -6,8 +6,10 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Data/Struct/AnimCardinal.h"
+#include "Data/Enum/Locomotion/CardinalDirection.h"
 #include "LSBaseAnimInstance.generated.h"
 
+struct FAnimUpdateContext;
 class UCharacterMovementComponent;
 struct FAnimNodeReference;
 /**
@@ -49,9 +51,20 @@ protected:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|速度")
 	FVector WorldVelocity;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|速度")
-	FVector2D WorldVelocity2D;
+	FVector WorldVelocity2D;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|速度")
+	FVector LocalVelocity2D;
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|速度")
+	bool bWasMovingLastUpdate;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|方向")
 	float LocalVelocityDirectionAngle;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "动画|方向")
+	ECardinalDirection LocalVelocityDirectionNoOffset;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画|方向")
+	float CardinalDirectDeadZone = 11.25f;
 	
 	// 一些公共函数及变量
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
@@ -62,7 +75,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "动画|Idle")
 	float TimeUntilNextIdleBreak = 3.f;
-	
+
+
 
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
 	void OnUpdateIdleAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node);
@@ -90,6 +104,8 @@ private:
 	void UpdateVelocityData();
 	void UpdateRotationData();
 
+	ECardinalDirection SelectCardinalDirectionFromAngle(float Angle, float DeadZone, ECardinalDirection CurrentDirection, bool bUseCurrentDirection = true);
+	
 private:
 	friend FLSBaseAnimInstanceProxy;
 };

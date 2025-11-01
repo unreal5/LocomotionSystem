@@ -5,6 +5,7 @@
 
 #include "KismetAnimationLibrary.h"
 #include "SequencePlayerLibrary.h"
+
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -63,17 +64,52 @@ void ULSBaseAnimInstance::UpdateVelocityData()
 {
 	if (OwnerMovementComp.IsValid() == false) return;
 
+	bWasMovingLastUpdate = !LocalVelocity2D.IsNearlyZero();
 	FVector Velocity = OwnerMovementComp->Velocity;
 	WorldVelocity = Velocity;
-	WorldVelocity2D = FVector2D(Velocity.X, Velocity.Y);
+	WorldVelocity2D = FVector(Velocity.X, Velocity.Y, 0.f);
+	LocalVelocity2D = WorldRotation.UnrotateVector(WorldVelocity2D);
 
 	LocalVelocityDirectionAngle = UKismetAnimationLibrary::CalculateDirection(WorldVelocity, WorldRotation);
+	LocalVelocityDirectionNoOffset = SelectCardinalDirectionFromAngle(LocalVelocityDirectionAngle,
+	                                                                  CardinalDirectDeadZone,
+	                                                                  LocalVelocityDirectionNoOffset,
+	                                                                  bWasMovingLastUpdate);
 }
 
 void ULSBaseAnimInstance::UpdateRotationData()
 {
 	if (OwnerCharacter.IsValid() == false) return;
-	WorldRotation = OwnerCharacter->GetActorRotation();//WorldTransform.GetRotation().Rotator();
+	WorldRotation = OwnerCharacter->GetActorRotation(); //WorldTransform.GetRotation().Rotator();
+}
+
+ECardinalDirection ULSBaseAnimInstance::SelectCardinalDirectionFromAngle(float Angle, float DeadZone,
+                                                                         ECardinalDirection CurrentDirection,
+                                                                         bool bUseCurrentDirection)
+{
+	float FwdDeadZone = DeadZone;
+	float BwdDeadZone = DeadZone;
+	// Adjust dead zone based on current direction
+	if (bUseCurrentDirection)
+	{
+		switch (CurrentDirection)
+		{
+		case ECardinalDirection::CD_Forward:
+			FwdDeadZone = DeadZone * 2.f;
+			break;
+		case ECardinalDirection::CD_Backward:
+			BwdDeadZone = DeadZone * 2.f;
+			break;
+		default:
+			break;
+		}
+	}
+
+	const float AbsAngle = FMath::Abs(Angle);
+	if (AbsAngle <= FwdDeadZone + 45.f) return ECardinalDirection::CD_Forward;
+	if (AbsAngle >= 135.f - BwdDeadZone) return ECardinalDirection::CD_Backward;
+
+	return (Angle > 0.f) ? ECardinalDirection::CD_Right : ECardinalDirection::CD_Left;
 }
 
 void ULSBaseAnimInstance::OnUpdateIdleAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node)
@@ -105,5 +141,23 @@ void ULSBaseAnimInstance::OnUpdateCycleAnimLayer(const FAnimUpdateContext& Conte
 	FSequencePlayerReference SeqPlayerRef = USequencePlayerLibrary::ConvertToSequencePlayer(Node, ConversionResult);
 	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded) return;
 
-	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, CycleCardinals.Forward);
+	UAnimSequenceBase* CycleAnim = nullptr;
+	switch (LocalVelocityDirectionNoOffset)
+	{
+	case ECardinalDirection::CD_Forward:
+		CycleAnim = CycleCardinals.Forward;
+		break;
+	case ECardinalDirection::CD_Backward:
+		CycleAnim = CycleCardinals.Backward;
+		break;
+	case ECardinalDirection::CD_Right:
+		CycleAnim = CycleCardinals.Right;
+		break;
+	case ECardinalDirection::CD_Left:
+		CycleAnim = CycleCardinals.Left;
+		break;
+	default:
+		break;
+	}
+	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, CycleAnim);
 }
