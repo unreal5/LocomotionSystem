@@ -3,11 +3,14 @@
 
 #include "LSBaseAnimInstance.h"
 
+#include "AnimExecutionContextLibrary.h"
 #include "KismetAnimationLibrary.h"
+#include "SequenceEvaluatorLibrary.h"
 #include "SequencePlayerLibrary.h"
 
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Animation/AnimExecutionContext.h"
 
 FLSBaseAnimInstanceProxy::FLSBaseAnimInstanceProxy(UAnimInstance* Instance) : FAnimInstanceProxy(Instance)
 {
@@ -33,7 +36,7 @@ void ULSBaseAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
 	OwnerCharacter = Cast<ACharacter>(TryGetPawnOwner());
-	if (OwnerCharacter.Get())
+	if (OwnerCharacter)
 	{
 		OwnerMovementComp = OwnerCharacter->GetCharacterMovement();
 	}
@@ -46,6 +49,7 @@ void ULSBaseAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 	UpdateLocationData();
 	UpdateRotationData();
 	UpdateVelocityData();
+	UpdateAccelerationData();
 }
 
 FAnimInstanceProxy* ULSBaseAnimInstance::CreateAnimInstanceProxy()
@@ -53,16 +57,32 @@ FAnimInstanceProxy* ULSBaseAnimInstance::CreateAnimInstanceProxy()
 	return new FLSBaseAnimInstanceProxy(this);
 }
 
+UCharacterMovementComponent* ULSBaseAnimInstance::GetOwnerMovementComponent()
+{
+	if (!OwnerMovementComp)
+	{
+		if (!OwnerCharacter)
+		{
+			OwnerCharacter = Cast<ACharacter>(TryGetPawnOwner());
+		}
+		if (OwnerCharacter)
+		{
+			OwnerMovementComp = OwnerCharacter->GetCharacterMovement();
+		}
+	}
+	return OwnerMovementComp;
+}
+
 void ULSBaseAnimInstance::UpdateLocationData()
 {
-	if (OwnerCharacter.IsValid() == false) return;
+	if (!OwnerCharacter) return;
 
 	WorldLocation = OwnerCharacter->GetActorLocation();
 }
 
 void ULSBaseAnimInstance::UpdateVelocityData()
 {
-	if (OwnerMovementComp.IsValid() == false) return;
+	if (!OwnerMovementComp) return;
 
 	bWasMovingLastUpdate = !LocalVelocity2D.IsNearlyZero();
 	FVector Velocity = OwnerMovementComp->Velocity;
@@ -79,8 +99,42 @@ void ULSBaseAnimInstance::UpdateVelocityData()
 
 void ULSBaseAnimInstance::UpdateRotationData()
 {
-	if (OwnerCharacter.IsValid() == false) return;
-	WorldRotation = OwnerCharacter->GetActorRotation(); //WorldTransform.GetRotation().Rotator();
+	if (!OwnerCharacter) return;
+	// WorldRotation 持有上一帧的旋转数据。
+	const FRotator CurrentFrameActorRotation = OwnerCharacter->GetActorRotation();
+	YawDeltaSinceLastFrame = CurrentFrameActorRotation.Yaw - WorldRotation.Yaw;
+	WorldRotation = CurrentFrameActorRotation;
+	SetRootYawOffset(RootYawOffset-YawDeltaSinceLastFrame);
+}
+
+void ULSBaseAnimInstance::UpdateAccelerationData()
+{
+	if (!OwnerMovementComp) return;
+	FVector WorldAcceleration2D = OwnerMovementComp->GetCurrentAcceleration() * FVector{1.f, 1.f, 0.f};
+	LocalAcceleration2D = WorldRotation.UnrotateVector(WorldAcceleration2D);
+	bHasAcceleration = !LocalAcceleration2D.IsNearlyZero();
+}
+
+void ULSBaseAnimInstance::UpdateRootYawOffset(float DeltaSeconds)
+{
+	switch (RootYawOffsetMode)
+	{
+	case ERootYawOffsetMode::Accumulate:
+		
+		break;
+	case ERootYawOffsetMode::BlendOut:
+		break;
+	case ERootYawOffsetMode::Hold:
+		break;
+
+	default:
+		check(0);
+		break;
+	}
+}
+
+void ULSBaseAnimInstance::SetRootYawOffset(float InRootYawOffset)
+{
 }
 
 ECardinalDirection ULSBaseAnimInstance::SelectCardinalDirectionFromAngle(float Angle, float DeadZone,
@@ -111,6 +165,7 @@ ECardinalDirection ULSBaseAnimInstance::SelectCardinalDirectionFromAngle(float A
 
 	return (Angle > 0.f) ? ECardinalDirection::CD_Right : ECardinalDirection::CD_Left;
 }
+
 
 void ULSBaseAnimInstance::OnUpdateIdleAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node)
 {
@@ -160,4 +215,55 @@ void ULSBaseAnimInstance::OnUpdateCycleAnimLayer(const FAnimUpdateContext& Conte
 		break;
 	}
 	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, CycleAnim);
+}
+
+void ULSBaseAnimInstance::OnSetupTurnInPlaceAnimLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node)
+{
+	EAnimNodeReferenceConversionResult ConversionResult;
+	FSequenceEvaluatorReference SeqEvalRef = USequenceEvaluatorLibrary::ConvertToSequenceEvaluator(
+		Node, ConversionResult);
+	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded) return;
+
+	TurnInPlaceAnimTime = 0.f;
+	USequenceEvaluatorLibrary::SetExplicitTime(SeqEvalRef, TurnInPlaceAnimTime);
+	bTurnInPlaceB = !bTurnInPlaceB;
+}
+
+void ULSBaseAnimInstance::OnUpdateTurnInPlaceAnimLayer(const FAnimUpdateContext& Context,
+                                                       const FAnimNodeReference& Node)
+{
+	EAnimNodeReferenceConversionResult ConversionResult;
+	FSequenceEvaluatorReference SeqEvalRef = USequenceEvaluatorLibrary::ConvertToSequenceEvaluator(
+		Node, ConversionResult);
+	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded) return;
+
+
+	auto AnimSeq = SelectTurnInPlaceAnimation(TurnInPlaceRotationDirection);
+	USequenceEvaluatorLibrary::SetSequenceWithInertialBlending(Context, SeqEvalRef, AnimSeq);
+
+	const float DeltaTime = UAnimExecutionContextLibrary::GetDeltaTime(Context);
+	TurnInPlaceAnimTime += DeltaTime * TurnInPlaceAnims.PlayRate;
+	USequenceEvaluatorLibrary::SetExplicitTime(SeqEvalRef, TurnInPlaceAnimTime);
+}
+
+void ULSBaseAnimInstance::OnSetupTurnInPlaceStateLayer(const FAnimUpdateContext& Context,
+                                                       const FAnimNodeReference& Node)
+{
+	TurnInPlaceRotationDirection = -FMath::Sign(RootYawOffset);
+}
+
+void ULSBaseAnimInstance::OnUpdateTurnInPlaceRecoveryStateLayer(const FAnimUpdateContext& Context,
+                                                                const FAnimNodeReference& Node)
+{
+	EAnimNodeReferenceConversionResult ConversionResult;
+	FSequencePlayerReference SeqPlayerRef = USequencePlayerLibrary::ConvertToSequencePlayer(Node, ConversionResult);
+	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded) return;
+
+	UAnimSequenceBase* SelectedRecoveryAnim = SelectTurnInPlaceAnimation(TurnInPlaceRotationDirection);
+	USequencePlayerLibrary::SetSequenceWithInertialBlending(Context, SeqPlayerRef, SelectedRecoveryAnim);
+}
+
+UAnimSequenceBase* ULSBaseAnimInstance::SelectTurnInPlaceAnimation(float Direction)
+{
+	return Direction > 0.f ? TurnInPlaceAnims.Right90 : TurnInPlaceAnims.Left90;
 }
