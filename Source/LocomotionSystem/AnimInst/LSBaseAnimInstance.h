@@ -8,6 +8,7 @@
 #include "Data/Enum/Locomotion/CardinalDirection.h"
 #include "Data/Enum/Locomotion/RootYawOffsetMode.h"
 #include "Data/Struct/LS_AnimSet.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "LSBaseAnimInstance.generated.h"
 
 struct FAnimUpdateContext;
@@ -122,6 +123,10 @@ protected:
 	void OnSetupTurnInPlaceStateLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node);
 	UFUNCTION(BlueprintCallable, meta = (BlueprintThreadSafe))
 	void OnUpdateTurnInPlaceRecoveryStateLayer(const FAnimUpdateContext& Context, const FAnimNodeReference& Node);
+
+	UPROPERTY(BlueprintReadWrite, Category = "动画|原地转身")
+	FAnimSet_Config L_Config;
+	
 	/* 原地转身-Recovery */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="曲线")
 	FName Curve_TurnYawWeight = TEXT("TurnYawWeight");
@@ -148,6 +153,8 @@ private:
 
 	UAnimSequenceBase* SelectTurnInPlaceAnimation(float Direction);
 
+	FFloatSpringState RootYawOffsetSpringState;
+	
 private:
 	friend FLSBaseAnimInstanceProxy;
 };

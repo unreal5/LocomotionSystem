@@ -11,6 +11,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimExecutionContext.h"
+#include "Kismet/KismetMathLibrary.h"
 
 FLSBaseAnimInstanceProxy::FLSBaseAnimInstanceProxy(UAnimInstance* Instance) : FAnimInstanceProxy(Instance)
 {
@@ -50,6 +51,7 @@ void ULSBaseAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 	UpdateRotationData();
 	UpdateVelocityData();
 	UpdateAccelerationData();
+	UpdateRootYawOffset(DeltaSeconds);
 }
 
 FAnimInstanceProxy* ULSBaseAnimInstance::CreateAnimInstanceProxy()
@@ -104,7 +106,6 @@ void ULSBaseAnimInstance::UpdateRotationData()
 	const FRotator CurrentFrameActorRotation = OwnerCharacter->GetActorRotation();
 	YawDeltaSinceLastFrame = CurrentFrameActorRotation.Yaw - WorldRotation.Yaw;
 	WorldRotation = CurrentFrameActorRotation;
-	SetRootYawOffset(RootYawOffset-YawDeltaSinceLastFrame);
 }
 
 void ULSBaseAnimInstance::UpdateAccelerationData()
@@ -120,21 +121,35 @@ void ULSBaseAnimInstance::UpdateRootYawOffset(float DeltaSeconds)
 	switch (RootYawOffsetMode)
 	{
 	case ERootYawOffsetMode::Accumulate:
-		
+		SetRootYawOffset(RootYawOffset - YawDeltaSinceLastFrame);
 		break;
 	case ERootYawOffsetMode::BlendOut:
+		{
+			const float TargetOffset = UKismetMathLibrary::FloatSpringInterp(
+				RootYawOffset, 0.f, RootYawOffsetSpringState, 80.f, 1.f, DeltaSeconds);
+			SetRootYawOffset(TargetOffset);
+		}
 		break;
 	case ERootYawOffsetMode::Hold:
+		// Do nothing
 		break;
-
 	default:
 		check(0);
 		break;
 	}
+
+	RootYawOffsetMode = ERootYawOffsetMode::BlendOut;
 }
 
 void ULSBaseAnimInstance::SetRootYawOffset(float InRootYawOffset)
 {
+	InRootYawOffset = UKismetMathLibrary::NormalizeAxis(InRootYawOffset);
+	const float ClampedAngle = UKismetMathLibrary::ClampAngle(InRootYawOffset, L_Config.RootYawOffsetAngleClamp.X,
+	                                                          L_Config.RootYawOffsetAngleClamp.Y);
+	const float SelectedAngle = (L_Config.RootYawOffsetAngleClamp.X == L_Config.RootYawOffsetAngleClamp.Y)
+		                            ? InRootYawOffset
+		                            : ClampedAngle;
+	RootYawOffset = L_Config.bDisableTurnInPlace ? 0.f : SelectedAngle;
 }
 
 ECardinalDirection ULSBaseAnimInstance::SelectCardinalDirectionFromAngle(float Angle, float DeadZone,

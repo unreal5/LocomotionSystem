@@ -35,6 +35,16 @@ struct FAnimSet_TurnInPlace
 	float PlayRate = 1.f;
 };
 
+USTRUCT(BlueprintType)
+struct FAnimSet_Config
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly)
+	FVector2D RootYawOffsetAngleClamp = FVector2D(-120.f, 120.f);
+	UPROPERTY(EditDefaultsOnly)
+	bool bDisableTurnInPlace = false;
+};
 /* General animation set */
 USTRUCT(BlueprintType, Blueprintable)
 struct FLS_AnimSet : public FTableRowBase
@@ -51,4 +61,7 @@ struct FLS_AnimSet : public FTableRowBase
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画|原地转身")
 	FAnimSet_TurnInPlace TurnInPlaceAnims;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "动画|原地转身")
+	FAnimSet_Config Config;
 };
